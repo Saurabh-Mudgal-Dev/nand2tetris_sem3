@@ -1,0 +1,34 @@
+=== Symbol Table Dump ===
+Source file : Rect.asm
+K = 45  |  Variant = K mod 3 = 0
+
+--- Predefined Symbols ---
+  SP            addr=0
+  R0            addr=0
+  LCL           addr=1
+  R1            addr=1
+  ARG           addr=2
+  R2            addr=2
+  R3            addr=3
+  THIS          addr=3
+  THAT          addr=4
+  R4            addr=4
+  R5            addr=5
+  R6            addr=6
+  R7            addr=7
+  R8            addr=8
+  R9            addr=9
+  R10           addr=10
+  R11           addr=11
+  R12           addr=12
+  R13           addr=13
+  R14           addr=14
+  R15           addr=15
+  SCREEN        addr=16384
+  KBD           addr=24576
+
+--- Labels & User Variables ---
+  LOOP          label     addr=10
+  counter       variable  addr=16
+  addr          variable  addr=17
+  END           variable  addr=23

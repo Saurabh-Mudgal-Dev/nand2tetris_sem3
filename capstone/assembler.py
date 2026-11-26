@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
-"""Hack Assembler — Two-pass assembler for the Hack machine language."""
+"""Hack Assembler — Two-pass assembler for the Hack machine language.
+
+Variant feature (K mod 3 == 0):
+  After assembly, all resolved symbols (predefined, labels, and user variables)
+  are written to symbols.txt alongside their RAM/ROM addresses.
+"""
 
 import sys
 import os
+
+
+K = 45                  # Roll: 2501010045 → K = 45
+VARIANT = K % 3         # 0 → dump symbol table to symbols.txt
 
 
 # ---------------------------------------------------------------------------
@@ -17,9 +26,15 @@ class SymbolTable:
         }
         for i in range(16):
             self.table[f"R{i}"] = i
+        self.labels = set()     # tracks symbols added as labels (Pass 1)
 
     def add_entry(self, symbol: str, address: int):
         self.table[symbol] = address
+
+    def add_label(self, symbol: str, address: int):
+        """Add a label symbol (defined by a (LABEL) pseudo-instruction)."""
+        self.table[symbol] = address
+        self.labels.add(symbol)
 
     def contains(self, symbol: str) -> bool:
         return symbol in self.table
@@ -126,7 +141,7 @@ def first_pass(lines: list, symbols: SymbolTable) -> list:
         if not line:
             continue
         if Parser.instruction_type(line) == Parser.L_INSTRUCTION:
-            symbols.add_entry(Parser.symbol(line), rom_addr)
+            symbols.add_label(Parser.symbol(line), rom_addr)
         else:
             clean.append(line)
             rom_addr += 1
@@ -169,6 +184,38 @@ def second_pass(instructions: list, symbols: SymbolTable) -> list:
 
 
 # ---------------------------------------------------------------------------
+# Variant Feature (K mod 3 == 0): Symbol Table Export
+# ---------------------------------------------------------------------------
+PREDEFINED = {
+    "SP", "LCL", "ARG", "THIS", "THAT", "SCREEN", "KBD",
+    *[f"R{i}" for i in range(16)]
+}
+
+def export_symbols(symbols: SymbolTable, asm_path: str):
+    """Write all symbols (predefined, labels, variables) to symbols.txt."""
+    # Always place symbols.txt beside the assembler script itself
+    sym_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "symbols.txt")
+
+    with open(sym_path, "w") as f:
+        f.write("=== Symbol Table Dump ===\n")
+        f.write(f"Source file : {os.path.basename(asm_path)}\n")
+        f.write(f"K = {K}  |  Variant = K mod 3 = {VARIANT}\n\n")
+
+        f.write("--- Predefined Symbols ---\n")
+        for sym in sorted(PREDEFINED, key=lambda s: symbols.get_address(s)):
+            f.write(f"  {sym:<12}  addr={symbols.get_address(sym)}\n")
+
+        f.write("\n--- Labels & User Variables ---\n")
+        user_syms = {k: v for k, v in symbols.table.items() if k not in PREDEFINED}
+        for sym, addr in sorted(user_syms.items(), key=lambda x: x[1]):
+            kind = "label   " if sym in symbols.labels else "variable"
+            f.write(f"  {sym:<12}  {kind}  addr={addr}\n")
+
+    print(f"[Variant K%3=0] Symbol table written -> {sym_path}")
+    return sym_path
+
+
+# ---------------------------------------------------------------------------
 # Entry Point
 # ---------------------------------------------------------------------------
 def assemble(asm_path: str):
@@ -183,7 +230,12 @@ def assemble(asm_path: str):
     with open(hack_path, "w") as f:
         f.write("\n".join(binary) + "\n")
 
-    return hack_path, symbols, binary
+    # Variant feature: dump symbol table if K mod 3 == 0
+    sym_path = None
+    if VARIANT == 0:
+        sym_path = export_symbols(symbols, asm_path)
+
+    return hack_path, sym_path, symbols, binary
 
 
 if __name__ == "__main__":
@@ -191,5 +243,5 @@ if __name__ == "__main__":
         print("Usage: python assembler.py <file.asm>")
         sys.exit(1)
 
-    out_path, sym_table, result = assemble(sys.argv[1])
+    out_path, sym_path, sym_table, result = assemble(sys.argv[1])
     print(f"Assembled {len(result)} instructions -> {out_path}")
