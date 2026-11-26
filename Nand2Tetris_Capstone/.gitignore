@@ -1,0 +1,17 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Operating System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Simulator test output and temporary run files
+*.out
+*.tmp
+
+# IDE / Editor configuration
+.vscode/
+.idea/

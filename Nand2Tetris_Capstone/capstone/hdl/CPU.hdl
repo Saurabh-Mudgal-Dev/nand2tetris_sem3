@@ -1,0 +1,48 @@
+// Hack CPU: decodes and executes A-instructions and C-instructions
+CHIP CPU {
+    IN  inM[16], instruction[16], reset;
+    OUT outM[16], writeM, addressM[15], pc[15];
+
+    PARTS:
+    // Instruction decoding
+    Not(in=instruction[15], out=isA);
+    Not(in=isA, out=isC);
+
+    // A-Register: loads instruction on A-inst, or ALU out if d1 set on C-inst
+    Mux16(a=instruction, b=outALU, sel=instruction[15], out=inA);
+    And(a=isC, b=instruction[5], out=loadAFromC);
+    Or(a=isA, b=loadAFromC, out=loadA);
+    ARegister(in=inA, load=loadA, out=outA, out[0..14]=addressM);
+
+    // D-Register: loads ALU out if d2 set on C-inst
+    And(a=isC, b=instruction[4], out=loadD);
+    DRegister(in=outALU, load=loadD, out=outD);
+
+    // ALU: compute on D and A/M based on control bits
+    Mux16(a=outA, b=inM, sel=instruction[12], out=inAM);
+    ALU(
+        x=outD, y=inAM,
+        zx=instruction[11], nx=instruction[10],
+        zy=instruction[9],  ny=instruction[8],
+        f=instruction[7],   no=instruction[6],
+        out=outALU, out=outM, zr=zr, ng=ng
+    );
+
+    // Memory write: set if d3 is asserted on C-inst
+    And(a=isC, b=instruction[3], out=writeM);
+
+    // Branch logic: evaluate flags against jump bits j1, j2, j3
+    Or(a=zr, b=ng, out=notPos);
+    Not(in=notPos, out=isPos);
+
+    And(a=instruction[2], b=ng, out=jNeg);
+    And(a=instruction[1], b=zr, out=jZero);
+    And(a=instruction[0], b=isPos, out=jPos);
+
+    Or(a=jNeg, b=jZero, out=jNZ);
+    Or(a=jNZ, b=jPos, out=jCond);
+    And(a=isC, b=jCond, out=loadPC);
+
+    // Program Counter: load target address from A on jump, else increment
+    PC(in=outA, load=loadPC, inc=true, reset=reset, out[0..14]=pc);
+}
