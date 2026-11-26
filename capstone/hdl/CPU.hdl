@@ -1,7 +1,7 @@
 // This file is part of www.nand2tetris.org
 // and the book "The Elements of Computing Systems"
 // by Nisan and Schocken, MIT Press.
-// File name: capstone/CPU.hdl
+// File name: capstone/hdl/CPU.hdl
 
 /**
  * The Hack Central Processing Unit (CPU).

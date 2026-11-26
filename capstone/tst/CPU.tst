@@ -1,7 +1,7 @@
 // Official CPU test script for Nand to Tetris Hardware Simulator
-load CPU.hdl,
-output-file CPU.out,
-compare-to CPU.cmp,
+load ../hdl/CPU.hdl,
+output-file ../CPU.out,
+compare-to ../cmp/CPU.cmp,
 output-list time%S0.4.0 inM%D1.6.1 instruction%B1.16.1 reset%B2.1.2 outM%D1.6.1 writeM%B2.1.2 addressM%D0.5.1 pc%D0.5.1;
 
 // A-instruction: @12345
