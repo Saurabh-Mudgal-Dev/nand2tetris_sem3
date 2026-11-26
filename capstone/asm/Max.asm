@@ -1,0 +1,21 @@
+// Max.asm - Computes R2 = max(R0, R1)
+@R0
+D=M
+@R1
+D=D-M
+@IF_R0
+D;JGT
+@R1
+D=M
+@R2
+M=D
+@END
+0;JMP
+(IF_R0)
+@R0
+D=M
+@R2
+M=D
+(END)
+@END
+0;JMP

@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-"""Hack Assembler - Pass 1: Parser and Symbol Table Label Resolution"""
+"""Hack Assembler — Two-pass assembler for the Hack machine language."""
 
 import sys
-import re
+import os
 
+
+# ---------------------------------------------------------------------------
+# Symbol Table
+# ---------------------------------------------------------------------------
 class SymbolTable:
     """Manages predefined, label, and variable symbols."""
     def __init__(self):
-        # Predefined symbols in Hack architecture
         self.table = {
             "SP": 0, "LCL": 1, "ARG": 2, "THIS": 3, "THAT": 4,
-            "SCREEN": 16384, "KBD": 24576
+            "SCREEN": 16384, "KBD": 24576,
         }
         for i in range(16):
             self.table[f"R{i}"] = i
@@ -21,79 +24,166 @@ class SymbolTable:
     def contains(self, symbol: str) -> bool:
         return symbol in self.table
 
-    def get_address(self, symbol: str) -> int:
+    def get_address(self, symbol: str):
         return self.table.get(symbol, None)
 
 
+# ---------------------------------------------------------------------------
+# Parser
+# ---------------------------------------------------------------------------
 class Parser:
-    """Parses Hack assembly instructions and extracts syntax components."""
+    """Parses individual Hack assembly instructions."""
     A_INSTRUCTION = 0
     C_INSTRUCTION = 1
     L_INSTRUCTION = 2
 
     @staticmethod
-    def sanitize_line(line: str) -> str:
-        """Strip comments and surrounding whitespace."""
-        line = line.split("//")[0].strip()
-        return "".join(line.split())
+    def sanitize(line: str) -> str:
+        return "".join(line.split("//")[0].split())
 
     @classmethod
-    def instruction_type(cls, instruction: str) -> int:
-        if instruction.startswith("@"):
+    def instruction_type(cls, inst: str) -> int:
+        if inst.startswith("@"):
             return cls.A_INSTRUCTION
-        if instruction.startswith("(") and instruction.endswith(")"):
+        if inst.startswith("(") and inst.endswith(")"):
             return cls.L_INSTRUCTION
         return cls.C_INSTRUCTION
 
     @staticmethod
-    def symbol(instruction: str) -> str:
-        """Extract symbol from @symbol or (LABEL)."""
-        if instruction.startswith("@"):
-            return instruction[1:]
-        if instruction.startswith("(") and instruction.endswith(")"):
-            return instruction[1:-1]
+    def symbol(inst: str) -> str:
+        if inst.startswith("@"):
+            return inst[1:]
+        if inst.startswith("(") and inst.endswith(")"):
+            return inst[1:-1]
         return ""
 
     @staticmethod
-    def dest(instruction: str) -> str:
-        """Extract destination part of C-instruction."""
-        if "=" in instruction:
-            return instruction.split("=")[0]
-        return ""
+    def dest(inst: str) -> str:
+        return inst.split("=")[0] if "=" in inst else ""
 
     @staticmethod
-    def comp(instruction: str) -> str:
-        """Extract computation part of C-instruction."""
-        inst = instruction.split("=")[-1]
-        return inst.split(";")[0]
+    def comp(inst: str) -> str:
+        return inst.split("=")[-1].split(";")[0]
 
     @staticmethod
-    def jump(instruction: str) -> str:
-        """Extract jump part of C-instruction."""
-        if ";" in instruction:
-            return instruction.split(";")[1]
-        return ""
+    def jump(inst: str) -> str:
+        return inst.split(";")[1] if ";" in inst else ""
 
 
-def first_pass(lines: list, symbol_table: SymbolTable) -> list:
-    """Scan instructions, record labels in symbol table, and return code lines."""
-    clean_instructions = []
-    rom_address = 0
+# ---------------------------------------------------------------------------
+# Code Generator
+# ---------------------------------------------------------------------------
+class Code:
+    """Translates Hack assembly mnemonics into binary codes."""
 
-    for raw_line in lines:
-        line = Parser.sanitize_line(raw_line)
+    DEST = {
+        "":    "000", "M":  "001", "D":  "010", "MD": "011",
+        "A":   "100", "AM": "101", "AD": "110", "AMD":"111",
+    }
+
+    JUMP = {
+        "":    "000", "JGT":"001", "JEQ":"010", "JGE":"011",
+        "JLT": "100", "JNE":"101", "JLE":"110", "JMP":"111",
+    }
+
+    COMP = {
+        # a=0 (use A)
+        "0":   "0101010", "1":   "0111111", "-1":  "0111010",
+        "D":   "0001100", "A":   "0110000", "!D":  "0001101",
+        "!A":  "0110001", "-D":  "0001111", "-A":  "0110011",
+        "D+1": "0011111", "A+1": "0110111", "D-1": "0001110",
+        "A-1": "0110010", "D+A": "0000010", "D-A": "0010011",
+        "A-D": "0000111", "D&A": "0000000", "D|A": "0010101",
+        # a=1 (use M)
+        "M":   "1110000", "!M":  "1110001", "-M":  "1110011",
+        "M+1": "1110111", "M-1": "1110010", "D+M": "1000010",
+        "D-M": "1010011", "M-D": "1000111", "D&M": "1000000",
+        "D|M": "1010101",
+    }
+
+    @classmethod
+    def dest(cls, mnemonic: str) -> str:
+        return cls.DEST.get(mnemonic, "000")
+
+    @classmethod
+    def comp(cls, mnemonic: str) -> str:
+        return cls.COMP.get(mnemonic, "0000000")
+
+    @classmethod
+    def jump(cls, mnemonic: str) -> str:
+        return cls.JUMP.get(mnemonic, "000")
+
+
+# ---------------------------------------------------------------------------
+# Pass 1 — Label Resolution
+# ---------------------------------------------------------------------------
+def first_pass(lines: list, symbols: SymbolTable) -> list:
+    """Record all label addresses; return sanitized instruction lines."""
+    clean = []
+    rom_addr = 0
+    for raw in lines:
+        line = Parser.sanitize(raw)
         if not line:
             continue
-
-        inst_type = Parser.instruction_type(line)
-        if inst_type == Parser.L_INSTRUCTION:
-            label = Parser.symbol(line)
-            symbol_table.add_entry(label, rom_address)
+        if Parser.instruction_type(line) == Parser.L_INSTRUCTION:
+            symbols.add_entry(Parser.symbol(line), rom_addr)
         else:
-            clean_instructions.append(line)
-            rom_address += 1
+            clean.append(line)
+            rom_addr += 1
+    return clean
 
-    return clean_instructions
+
+# ---------------------------------------------------------------------------
+# Pass 2 — Binary Code Generation
+# ---------------------------------------------------------------------------
+def second_pass(instructions: list, symbols: SymbolTable) -> list:
+    """Translate each instruction into a 16-bit binary string."""
+    binary_lines = []
+    next_var_addr = 16   # Variables are allocated from RAM[16] onwards
+
+    for inst in instructions:
+        itype = Parser.instruction_type(inst)
+
+        if itype == Parser.A_INSTRUCTION:
+            value = Parser.symbol(inst)
+            if value.isdigit():
+                # Numeric constant
+                address = int(value)
+            elif symbols.contains(value):
+                # Already-known label or predefined symbol
+                address = symbols.get_address(value)
+            else:
+                # New variable — allocate next available RAM address
+                symbols.add_entry(value, next_var_addr)
+                address = next_var_addr
+                next_var_addr += 1
+            binary_lines.append(f"0{address:015b}")
+
+        else:  # C_INSTRUCTION
+            d = Code.dest(Parser.dest(inst))
+            c = Code.comp(Parser.comp(inst))
+            j = Code.jump(Parser.jump(inst))
+            binary_lines.append(f"111{c}{d}{j}")
+
+    return binary_lines
+
+
+# ---------------------------------------------------------------------------
+# Entry Point
+# ---------------------------------------------------------------------------
+def assemble(asm_path: str):
+    with open(asm_path, "r") as f:
+        lines = f.readlines()
+
+    symbols = SymbolTable()
+    instructions = first_pass(lines, symbols)
+    binary = second_pass(instructions, symbols)
+
+    hack_path = os.path.splitext(asm_path)[0] + ".hack"
+    with open(hack_path, "w") as f:
+        f.write("\n".join(binary) + "\n")
+
+    return hack_path, symbols, binary
 
 
 if __name__ == "__main__":
@@ -101,15 +191,5 @@ if __name__ == "__main__":
         print("Usage: python assembler.py <file.asm>")
         sys.exit(1)
 
-    asm_filename = sys.argv[1]
-    with open(asm_filename, "r") as f:
-        asm_lines = f.readlines()
-
-    symbols = SymbolTable()
-    instructions = first_pass(asm_lines, symbols)
-
-    print(f"Pass 1 Complete: {len(instructions)} ROM instructions parsed.")
-    print("Resolved symbols (labels & predefined):")
-    for sym, addr in sorted(symbols.table.items()):
-        if not sym.startswith("R") or len(sym) > 3:
-            print(f"  {sym:12} -> {addr}")
+    out_path, sym_table, result = assemble(sys.argv[1])
+    print(f"Assembled {len(result)} instructions -> {out_path}")
