@@ -1,40 +1,9 @@
-// This file is part of www.nand2tetris.org
-// and the book "The Elements of Computing Systems"
-// by Nisan and Schocken, MIT Press.
-// File name: capstone/hdl/Computer.hdl
-
-/**
- * The HACK Computer Platform.
- * Consists of CPU, ROM32K, and Memory (RAM16K + Screen + Keyboard).
- * 
- * When reset is 0, the program stored in ROM executes.
- * When reset is 1, the execution restarts from instruction 0.
- */
-
+// Hack Computer: integrates CPU, ROM32K, and Memory I/O
 CHIP Computer {
-
     IN reset;
 
     PARTS:
-    // Program ROM storing 32K 16-bit instructions, addressed by CPU Program Counter (PC)
     ROM32K(address=pc, out=instruction);
-
-    // Central Processing Unit
-    CPU(
-        inM=inM,
-        instruction=instruction,
-        reset=reset,
-        outM=outM,
-        writeM=writeM,
-        addressM=addressM,
-        pc=pc
-    );
-
-    // Complete Memory-mapped address space (RAM16K, Screen, Keyboard)
-    Memory(
-        in=outM,
-        load=writeM,
-        address=addressM,
-        out=inM
-    );
+    CPU(inM=inM, instruction=instruction, reset=reset, outM=outM, writeM=writeM, addressM=addressM, pc=pc);
+    Memory(in=outM, load=writeM, address=addressM, out=inM);
 }
