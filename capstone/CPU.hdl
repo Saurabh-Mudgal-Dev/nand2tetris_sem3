@@ -1,0 +1,109 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: capstone/CPU.hdl
+
+/**
+ * The Hack Central Processing Unit (CPU).
+ * Consists of an ALU, two registers named A and D, and a program counter (PC).
+ * The CPU fetches and executes instructions written in the Hack machine language.
+ *
+ * In the case of an A-instruction (instruction[15] == 0):
+ *   The 15-bit constant is loaded into the A register.
+ * In the case of a C-instruction (instruction[15] == 1):
+ *   The instruction's comp, dest, and jump bits control ALU operation,
+ *   register/memory loading, and PC jumping.
+ */
+
+CHIP CPU {
+
+    IN  inM[16],         // M value input  (M = contents of RAM[A])
+        instruction[16], // Instruction for execution
+        reset;           // Signals whether to re-start the current
+                         // program (reset==1) or continue executing
+                         // the current program (reset==0).
+
+    OUT outM[16],        // M value output
+        writeM,          // Write to M? 
+        addressM[15],    // Address in data memory (of M)
+        pc[15];          // address of next instruction
+
+    PARTS:
+    // -------------------------------------------------------------
+    // 1. Instruction Decoding
+    // -------------------------------------------------------------
+    // instruction[15]: 0 for A-instruction, 1 for C-instruction
+    Not(in=instruction[15], out=isA);
+    Not(in=isA, out=isC);
+
+    // -------------------------------------------------------------
+    // 2. A-Register & Input Multiplexer
+    // -------------------------------------------------------------
+    // For A-instruction, load instruction into A.
+    // For C-instruction, if dest bit d1 (instruction[5]) is set, load ALU output.
+    Mux16(a=instruction, b=outALU, sel=instruction[15], out=inA);
+    And(a=isC, b=instruction[5], out=loadAFromC);
+    Or(a=isA, b=loadAFromC, out=loadA);
+    ARegister(in=inA, load=loadA, out=outA, out[0..14]=addressM);
+
+    // -------------------------------------------------------------
+    // 3. D-Register
+    // -------------------------------------------------------------
+    // Load D-register if C-instruction and dest bit d2 (instruction[4]) is set.
+    And(a=isC, b=instruction[4], out=loadD);
+    DRegister(in=outALU, load=loadD, out=outD);
+
+    // -------------------------------------------------------------
+    // 4. ALU Input & Computation
+    // -------------------------------------------------------------
+    // Select between A-register and memory input M based on instruction[12] (a-bit)
+    Mux16(a=outA, b=inM, sel=instruction[12], out=inAM);
+
+    ALU(
+        x=outD,
+        y=inAM,
+        zx=instruction[11],  // c1
+        nx=instruction[10],  // c2
+        zy=instruction[9],   // c3
+        ny=instruction[8],   // c4
+        f=instruction[7],    // c5
+        no=instruction[6],   // c6
+        out=outALU,
+        out=outM,
+        zr=zr,
+        ng=ng
+    );
+
+    // -------------------------------------------------------------
+    // 5. Memory Write Control
+    // -------------------------------------------------------------
+    // Write to memory if C-instruction and dest bit d3 (instruction[3]) is set.
+    And(a=isC, b=instruction[3], out=writeM);
+
+    // -------------------------------------------------------------
+    // 6. Jump Logic & Program Counter (PC)
+    // -------------------------------------------------------------
+    // Output status flags:
+    // zr: out == 0
+    // ng: out < 0
+    // positive: out > 0 (not zero and not negative)
+    Or(a=zr, b=ng, out=notPos);
+    Not(in=notPos, out=isPos);
+
+    // Jump conditions:
+    // j1 (instruction[2]): jump if out < 0
+    // j2 (instruction[1]): jump if out == 0
+    // j3 (instruction[0]): jump if out > 0
+    And(a=instruction[2], b=ng, out=jumpNeg);
+    And(a=instruction[1], b=zr, out=jumpZero);
+    And(a=instruction[0], b=isPos, out=jumpPos);
+
+    Or(a=jumpNeg, b=jumpZero, out=jumpNZ);
+    Or(a=jumpNZ, b=jumpPos, out=jumpCond);
+
+    // Jump only executes for C-instructions
+    And(a=isC, b=jumpCond, out=loadPC);
+
+    // PC: load address from A on jump, otherwise increment counter
+    PC(in=outA, load=loadPC, inc=true, reset=reset, out[0..14]=pc);
+}
