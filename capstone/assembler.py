@@ -209,9 +209,10 @@ def export_symbols(symbols: SymbolTable, asm_path: str):
 
         f.write("\n--- Labels & User Variables ---\n")
         user_syms = {k: v for k, v in symbols.table.items() if k not in PREDEFINED}
-        for sym, addr in sorted(user_syms.items(), key=lambda x: x[1]):
+        for sym, addr in sorted(user_syms.items(), key=lambda x: (x[1], x[0])):
+            mem_type = "ROM" if sym in symbols.labels else "RAM"
             kind = "label   " if sym in symbols.labels else "variable"
-            f.write(f"  {sym:<12}  {kind}  addr={addr}\n")
+            f.write(f"  {sym:<12}  {kind}  {mem_type}[{addr}]\n")
 
     print(f"[Variant K%3=0] Symbol table written -> {sym_path}")
     return sym_path

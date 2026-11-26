@@ -1,36 +1,55 @@
-// Box.asm: Renders a black box at row K=45, height 20, width 32 pixels (2 words)
-// Row 45 start address: SCREEN + 32*45 = 16384 + 1440 = 17824
+// Box.asm: Interactive box program (K=45)
+// Black box appears while any key is pressed; disappears when released
+// Start row: 45 (addr = 16384 + 32*45 = 17824), Height: 20, Width: 2 words (32px)
 
+(POLL_KBD)
+    @KBD
+    D=M
+    @PRESSED
+    D;JNE
+
+    // Released: color = 0 (white)
+    @color
+    M=0
+    @DRAW
+    0;JMP
+
+(PRESSED)
+    // Pressed: color = -1 (black)
+    @color
+    M=-1
+
+(DRAW)
     @17824
     D=A
     @addr
-    M=D        // addr = 17824
+    M=D
 
     @20
     D=A
     @r
-    M=D        // r = 20 rows
+    M=D
 
 (ROW_LOOP)
-    // Draw 2 consecutive words (32 pixels) on current row
+    @color
+    D=M
     @addr
     A=M
-    M=-1       // Word 0
+    M=D
     A=A+1
-    M=-1       // Word 1
+    M=D
 
-    // Move addr to next row: addr = addr + 32
+    // addr += 32
     @32
     D=A
     @addr
     M=D+M
 
-    // Decrement row counter: r = r - 1
+    // r -= 1
     @r
     MD=M-1
     @ROW_LOOP
-    D;JGT      // Repeat while r > 0
+    D;JGT
 
-(HALT)
-    @HALT
+    @POLL_KBD
     0;JMP
