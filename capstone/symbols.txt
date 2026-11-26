@@ -1,5 +1,5 @@
 === Symbol Table Dump ===
-Source file : Rect.asm
+Source file : Box.asm
 K = 45  |  Variant = K mod 3 = 0
 
 --- Predefined Symbols ---
@@ -7,8 +7,8 @@ K = 45  |  Variant = K mod 3 = 0
   R0            addr=0
   R1            addr=1
   LCL           addr=1
-  R2            addr=2
   ARG           addr=2
+  R2            addr=2
   R3            addr=3
   THIS          addr=3
   R4            addr=4
@@ -28,7 +28,7 @@ K = 45  |  Variant = K mod 3 = 0
   KBD           addr=24576
 
 --- Labels & User Variables ---
-  LOOP          label     addr=10
-  counter       variable  addr=16
-  addr          variable  addr=17
-  END           label     addr=23
+  ROW_LOOP      label     addr=8
+  addr          variable  addr=16
+  r             variable  addr=17
+  HALT          label     addr=21
